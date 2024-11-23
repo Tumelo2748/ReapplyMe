@@ -10,6 +10,8 @@ import Dashboard from './components/Dashboard'
 import JobSearch from './components/JobSearch'
 import ApplicationTracker from './components/ApplicationTracker'
 import EmailTemplate from './components/EmailTemplate'
+import ResetPassword from './components/ResetPassword'
+import UpdatePassword from './components/UpdatePassword'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -32,6 +34,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
             <Route 
               path="/dashboard" 
               element={session ? <Dashboard /> : <Login />} 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -93,6 +93,14 @@ export default function Login() {
                   placeholder="Enter your password"
                   required
                 />
+                <div className="mt-1 text-right">
+                  <Link
+                    to="/reset-password"
+                    className="text-sm text-primary-600 hover:text-primary-500"
+                  >
+                    Forgot your password?
+                  </Link>
+                </div>
               </div>
             </div>
 
