@@ -35,6 +35,9 @@ export default function Login() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          redirectTo: `${window.location.origin}/update-password`,
+        },
       })
       if (error) throw error
       alert('Check your email for the confirmation link!')
