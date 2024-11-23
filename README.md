@@ -51,7 +51,7 @@ ReapplyMe is a modern web application designed to streamline the job application
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ReapplyMe.git
+git clone https://github.com/Tumelo2748/ReapplyMe.git
 cd ReapplyMe
 ```
 
