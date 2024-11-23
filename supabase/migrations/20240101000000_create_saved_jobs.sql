@@ -8,6 +8,5 @@ create table saved_jobs (
   description text,
   url text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  
   unique(user_id, job_id)
 );
