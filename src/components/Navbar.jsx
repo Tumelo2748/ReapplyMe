@@ -53,6 +53,12 @@ export default function Navbar({ session }) {
                   >
                     Email Templates
                   </Link>
+                  <Link
+                    to="/progress"
+                    className="px-3 py-2 text-gray-600 hover:text-primary-600 transition-colors rounded-lg hover:bg-gray-50"
+                  >
+                    Progress
+                  </Link>
                 </>
               )}
             </div>

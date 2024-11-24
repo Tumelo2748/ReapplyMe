@@ -13,6 +13,7 @@ import ApplicationTracker from './components/ApplicationTracker'
 import ResetPassword from './components/ResetPassword'
 import UpdatePassword from './components/UpdatePassword'
 import EmailTemplate from './components/EmailTemplate'
+import Progress from './components/Progress'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -70,6 +71,10 @@ function App() {
           <Route
             path="/email-template"
             element={session ? <EmailTemplate /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/progress"
+            element={session ? <Progress /> : <Navigate to="/login" />}
           />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/update-password" element={<UpdatePassword />} />
