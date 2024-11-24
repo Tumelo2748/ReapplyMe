@@ -46,39 +46,41 @@ function App() {
     <Router>
       <div className="min-h-screen bg-gray-50">
         <Navbar session={session} />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route
-            path="/login"
-            element={session ? <Navigate to="/dashboard" /> : <Login />}
-          />
-          <Route
-            path="/signup"
-            element={session ? <Navigate to="/dashboard" /> : <SignUp />}
-          />
-          <Route
-            path="/dashboard"
-            element={session ? <Dashboard /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/job-search"
-            element={session ? <JobSearch /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/applications"
-            element={session ? <ApplicationTracker /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/email-template"
-            element={session ? <EmailTemplate /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/progress"
-            element={session ? <Progress /> : <Navigate to="/login" />}
-          />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/update-password" element={<UpdatePassword />} />
-        </Routes>
+        <main className="pt-16">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route
+              path="/login"
+              element={session ? <Navigate to="/dashboard" /> : <Login />}
+            />
+            <Route
+              path="/signup"
+              element={session ? <Navigate to="/dashboard" /> : <SignUp />}
+            />
+            <Route
+              path="/dashboard"
+              element={session ? <Dashboard /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/job-search"
+              element={session ? <JobSearch /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/applications"
+              element={session ? <ApplicationTracker /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/email-template"
+              element={session ? <EmailTemplate /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/progress"
+              element={session ? <Progress /> : <Navigate to="/login" />}
+            />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
+          </Routes>
+        </main>
       </div>
     </Router>
   )
