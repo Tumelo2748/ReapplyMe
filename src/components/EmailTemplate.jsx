@@ -92,6 +92,36 @@ const EmailTemplate = () => {
   };
 
   useEffect(() => {
+    if (selectedTemplate === "custom") {
+      setEditableContent("");
+      setEmailContent("");
+      return;
+    }
+
+    // Check user templates first
+    const userTemplate = userTemplates.find(t => t.id === selectedTemplate);
+    if (userTemplate) {
+      let content = userTemplate.content;
+      content = applyVariables(content);
+      setEditableContent(content);
+      setEmailContent(content);
+      return;
+    }
+
+    // If not found in user templates, check predefined templates
+    const predefinedTemplate = emailTemplates[selectedTemplate];
+    if (!predefinedTemplate) {
+      console.warn(`Template not found: ${selectedTemplate}`);
+      return;
+    }
+
+    let content = predefinedTemplate.content;
+    content = applyVariables(content);
+    setEditableContent(content);
+    setEmailContent(content);
+  }, [selectedTemplate, userTemplates]);
+
+  useEffect(() => {
     fetchProfile();
     fetchUserTemplates();
   }, []);
@@ -146,17 +176,80 @@ const EmailTemplate = () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      
       if (user) {
-        const { data, error } = await supabase
+        // Fetch user's own templates
+        const { data: ownTemplates, error: ownError } = await supabase
           .from("user_email_templates")
           .select("*")
-          .eq("user_id", user.id);
+          .eq("created_by", user.id);
 
-        if (error) throw error;
-        setUserTemplates(data || []);
+        if (ownError) throw ownError;
+
+        // Fetch templates shared with the user
+        const { data: sharedData, error: sharedError } = await supabase
+          .from("shared_templates")
+          .select(`
+            template_id,
+            can_edit,
+            shared_by,
+            user_email_templates!inner (
+              id,
+              name,
+              content,
+              category,
+              created_by
+            )
+          `)
+          .eq("shared_with", user.id);
+
+        if (sharedError) throw sharedError;
+
+        // Transform shared templates data
+        const sharedTemplates = sharedData?.map(share => ({
+          ...share.user_email_templates,
+          isShared: true,
+          canEdit: share.can_edit,
+          sharedBy: share.shared_by
+        })) || [];
+
+        // Combine own and shared templates
+        const allTemplates = [
+          ...(ownTemplates || []).map(t => ({ ...t, isOwner: true })),
+          ...sharedTemplates
+        ];
+
+        console.log('All templates:', allTemplates); // Debug log
+        setUserTemplates(allTemplates);
       }
     } catch (error) {
-      console.error("Error fetching user templates:", error);
+      console.error("Error fetching templates:", error);
+    }
+  };
+
+  const getTemplateDisplayName = (template) => {
+    if (template.isShared) {
+      return `${template.name} (Shared)`;
+    }
+    return template.name;
+  };
+
+  useEffect(() => {
+    fetchTemplateVersions(selectedTemplate);
+  }, [selectedTemplate]);
+
+  const fetchTemplateVersions = async (templateId) => {
+    try {
+      const { data, error } = await supabase
+        .from("template_versions")
+        .select("*")
+        .eq("template_id", templateId)
+        .order("version_number", { ascending: false });
+
+      if (error) throw error;
+      setTemplateVersions(data || []);
+    } catch (error) {
+      console.error("Error fetching template versions:", error);
     }
   };
 
@@ -166,29 +259,25 @@ const EmailTemplate = () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (!user) throw new Error("No user found");
 
-      const templateData = {
-        user_id: user.id,
-        name:
-          currentTemplateName ||
-          `Custom ${emailTemplates[selectedTemplate].name}`,
-        content: editableContent,
-        template_type: selectedTemplate,
-        category: selectedCategory,
-        is_default: false,
-      };
-
-      // Save template
-      const { data: savedTemplate, error } = await supabase
+      // Save the template
+      const { data: savedTemplate, error: saveError } = await supabase
         .from("user_email_templates")
-        .upsert(templateData)
+        .upsert({
+          id: selectedTemplate,
+          name: currentTemplateName || "Untitled Template",
+          content: editableContent,
+          category: selectedCategory,
+          created_by: user.id,
+        })
         .select()
         .single();
 
-      if (error) throw error;
+      if (saveError) throw saveError;
 
-      // Save version
+      // Get the next version number
       const { data: versions } = await supabase
         .from("template_versions")
         .select("version_number")
@@ -196,9 +285,9 @@ const EmailTemplate = () => {
         .order("version_number", { ascending: false })
         .limit(1);
 
-      const nextVersion =
-        versions?.length > 0 ? versions[0].version_number + 1 : 1;
+      const nextVersion = versions?.length > 0 ? versions[0].version_number + 1 : 1;
 
+      // Save the version
       const { error: versionError } = await supabase
         .from("template_versions")
         .insert({
@@ -222,40 +311,96 @@ const EmailTemplate = () => {
     }
   };
 
-  const fetchTemplateVersions = async (templateId) => {
-    try {
-      const { data, error } = await supabase
-        .from("template_versions")
-        .select("*")
-        .eq("template_id", templateId)
-        .order("version_number", { ascending: false });
-
-      if (error) throw error;
-      setTemplateVersions(data || []);
-    } catch (error) {
-      console.error("Error fetching template versions:", error);
-    }
-  };
-
   const handleShareTemplate = async () => {
     try {
-      if (!shareEmail) return;
+      if (!shareEmail) {
+        alert("Please enter an email address");
+        return;
+      }
 
-      const { data: userToShare, error: userError } = await supabase
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) throw new Error("No user found");
+
+      // Get the template - check both user templates and predefined templates
+      let templateToShare;
+      
+      // First check if it's a UUID (user template)
+      const userTemplate = userTemplates.find(t => t.id === selectedTemplate);
+      if (userTemplate) {
+        templateToShare = userTemplate;
+      } else {
+        // Check predefined templates
+        const predefinedTemplate = emailTemplates[selectedTemplate];
+        if (predefinedTemplate) {
+          // Create a new template in the database from the predefined template
+          const { data: newTemplate, error: createError } = await supabase
+            .from("user_email_templates")
+            .insert({
+              name: predefinedTemplate.name,
+              content: predefinedTemplate.content,
+              created_by: user.id,
+              category: selectedCategory
+            })
+            .select()
+            .single();
+
+          if (createError) throw createError;
+          templateToShare = newTemplate;
+        }
+      }
+
+      if (!templateToShare) {
+        alert("Please select a valid template to share");
+        return;
+      }
+
+      // First try to find user by email in profiles
+      let { data: userToShare, error: userError } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, email")
         .eq("email", shareEmail)
         .single();
 
-      if (userError) throw userError;
+      // If not found in profiles, check auth.users
+      if (userError) {
+        const { data: authUser, error: authError } = await supabase
+          .from("auth")
+          .select("id, email")
+          .eq("email", shareEmail)
+          .single();
 
+        if (authError) {
+          alert("User not found with this email address");
+          return;
+        }
+
+        userToShare = { id: authUser.id, email: authUser.email };
+      }
+
+      // Check if template is already shared with this user
+      const { data: existingShare, error: checkError } = await supabase
+        .from("shared_templates")
+        .select("*")
+        .eq("template_id", templateToShare.id)
+        .eq("shared_with", userToShare.id)
+        .single();
+
+      if (existingShare) {
+        alert("Template is already shared with this user");
+        return;
+      }
+
+      // Share the template
       const { error: shareError } = await supabase
         .from("shared_templates")
         .insert({
-          template_id: selectedTemplate,
+          template_id: templateToShare.id,
           shared_with: userToShare.id,
           can_edit: canEdit,
-          shared_by: profile.id,
+          shared_by: user.id,
         });
 
       if (shareError) throw shareError;
@@ -263,9 +408,12 @@ const EmailTemplate = () => {
       alert("Template shared successfully!");
       setShareEmail("");
       setCanEdit(false);
+      
+      // Refresh user templates to include the newly created one if it was a predefined template
+      fetchUserTemplates();
     } catch (error) {
       console.error("Error sharing template:", error);
-      alert("Error sharing template");
+      alert("Error sharing template. Please make sure the email address is correct and you have selected a valid template.");
     }
   };
 
@@ -367,7 +515,37 @@ const EmailTemplate = () => {
   };
 
   const getRequiredFields = () => {
-    const content = emailTemplates[selectedTemplate].content;
+    // Handle custom template case
+    if (selectedTemplate === "custom") {
+      return [];
+    }
+
+    // First check if it's a UUID (database template)
+    const userTemplate = userTemplates.find(t => t.id === selectedTemplate);
+    if (userTemplate) {
+      const content = userTemplate.content;
+      const matches = content.match(/{{([A-Z_]+)}}/g) || [];
+      return matches
+        .map((match) => match.replace(/[{}]/g, ""))
+        .filter(
+          (field) =>
+            ![
+              "USER_FIRSTNAME",
+              "USER_LASTNAME",
+              "USER_TITLE",
+              "COMPANY_NAME",
+            ].includes(field)
+        );
+    }
+
+    // If not found in user templates, check predefined templates
+    const predefinedTemplate = emailTemplates[selectedTemplate];
+    if (!predefinedTemplate || !predefinedTemplate.content) {
+      console.warn(`Template not found or invalid: ${selectedTemplate}`);
+      return [];
+    }
+
+    const content = predefinedTemplate.content;
     const matches = content.match(/{{([A-Z_]+)}}/g) || [];
     return matches
       .map((match) => match.replace(/[{}]/g, ""))
@@ -380,6 +558,58 @@ const EmailTemplate = () => {
             "COMPANY_NAME",
           ].includes(field)
       );
+  };
+
+  const handleTemplateSelect = (event) => {
+    const newTemplate = event.target.value;
+    setSelectedTemplate(newTemplate);
+    
+    // Reset editing state when switching templates
+    setIsEditing(false);
+    
+    // Find the selected template
+    const template = userTemplates.find(t => t.id === newTemplate);
+    
+    // Only allow editing if it's the user's own template or they have edit permission
+    if (template) {
+      const canEditTemplate = template.isOwner || template.canEdit;
+      setIsEditing(canEditTemplate);
+    }
+  };
+
+  const renderTemplateOptions = () => {
+    const ownTemplates = userTemplates.filter(t => t.isOwner);
+    const sharedTemplates = userTemplates.filter(t => t.isShared);
+
+    return (
+      <>
+        <optgroup label="Standard Templates">
+          {Object.entries(emailTemplates).map(([key, template]) => (
+            <option key={key} value={key}>
+              {template.name}
+            </option>
+          ))}
+        </optgroup>
+        {ownTemplates.length > 0 && (
+          <optgroup label="Your Templates">
+            {ownTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {sharedTemplates.length > 0 && (
+          <optgroup label="Shared With You">
+            {sharedTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name} (Shared)
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </>
+    );
   };
 
   if (loading) {
@@ -452,34 +682,10 @@ const EmailTemplate = () => {
               <select
                 id="templateSelect"
                 value={selectedTemplate}
-                onChange={(e) => {
-                  setSelectedTemplate(e.target.value);
-                  setIsEditing(false);
-                  setAiOptions({
-                    tone: "",
-                    length: "",
-                    emphasis: "",
-                    style: "",
-                  });
-                }}
+                onChange={handleTemplateSelect}
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white"
               >
-                <optgroup label="Default Templates">
-                  {Object.entries(emailTemplates).map(([key, template]) => (
-                    <option key={key} value={key}>
-                      {template.name}
-                    </option>
-                  ))}
-                </optgroup>
-                {userTemplates.length > 0 && (
-                  <optgroup label="Your Templates">
-                    {userTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                {renderTemplateOptions()}
               </select>
             </div>
 
@@ -499,34 +705,8 @@ const EmailTemplate = () => {
                 placeholder="Enter company name"
               />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 pb-2 border-b">
-                Additional Fields
-              </h3>
-              <div className="space-y-4">
-                {requiredFields.map((field) => (
-                  <div key={field}>
-                    <label
-                      htmlFor={field}
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      {field}
-                    </label>
-                    <input
-                      type="text"
-                      id={field}
-                      value={aiOptions[field] || ""}
-                      onChange={(e) => handleFieldChange(field, e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder={`Enter ${field}`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
 
-          {/* additinal fields */}
+          </div>
 
           {/* Template Sharing Section */}
           {isEditing && (
@@ -534,14 +714,13 @@ const EmailTemplate = () => {
               <h3 className="text-lg font-semibold text-gray-900 pb-2 border-b">
                 Share Template
               </h3>
-
               <div className="space-y-4">
                 <div>
                   <label
                     htmlFor="shareEmail"
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
-                    Share with (email)
+                    Share with (Email)
                   </label>
                   <input
                     type="email"
@@ -552,7 +731,6 @@ const EmailTemplate = () => {
                     placeholder="Enter email address"
                   />
                 </div>
-
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -568,10 +746,9 @@ const EmailTemplate = () => {
                     Allow editing
                   </label>
                 </div>
-
                 <button
                   onClick={handleShareTemplate}
-                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors"
+                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Share Template
                 </button>
@@ -580,37 +757,36 @@ const EmailTemplate = () => {
           )}
         </div>
 
-        {/* Right Side - Editor */}
-        <div className="lg:col-span-2">
+        {/* Main Content Area */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* Editor Section */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex space-x-4">
+            <div className="mb-6 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Email Content
+              </h3>
+              <div className="space-x-4">
                 <button
-                  onClick={toggleEditMode}
-                  className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                    isEditing
-                      ? "bg-gray-200 text-gray-800"
-                      : "bg-indigo-600 text-white hover:bg-indigo-700"
-                  }`}
+                  onClick={() => {
+                    if (isEditing) {
+                      handleSaveTemplate();
+                    } else {
+                      setIsEditing(true);
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
-                  {isEditing ? "Preview" : "Edit"}
+                  {isEditing ? (saving ? "Saving..." : "Save") : "Edit"}
                 </button>
                 {isEditing && (
                   <button
-                    onClick={handleSaveTemplate}
-                    disabled={saving}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                   >
-                    {saving ? "Saving..." : "Save Template"}
+                    Cancel
                   </button>
                 )}
               </div>
-              <button
-                onClick={handleCopyToClipboard}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-              >
-                {isCopied ? "Copied!" : "Copy to Clipboard"}
-              </button>
             </div>
 
             {isEditing ? (

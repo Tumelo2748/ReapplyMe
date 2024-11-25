@@ -172,12 +172,12 @@ export default function Progress() {
             <h3 className="text-lg font-semibold text-gray-900">Applications</h3>
             <FiTrendingUp className="w-5 h-5 text-primary-600" />
           </div>
-          <div className="flex items-end justify-between">
+          <div className="flex items-end justify-between ">
             <div>
               <p className="text-3xl font-bold text-gray-900">{stats.applications}</p>
               <p className="text-sm text-gray-500">Total Applications</p>
             </div>
-            <div className="w-20 h-20">
+            <div className="w-20 h-20 hover:bg-black">
               <CircularProgressbar
                 value={(stats.applications / 10) * 100}
                 maxValue={100}

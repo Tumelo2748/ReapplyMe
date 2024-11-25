@@ -194,7 +194,7 @@ export default function Dashboard() {
 
   return (
     <div className="w-full bg-gray-50 min-h-screen py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           {/* Header with Profile Completion */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -220,7 +220,8 @@ export default function Dashboard() {
           <form onSubmit={updateProfile} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Column */}
             <div className="space-y-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              {/* Profile Section */}
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <FiUser className="w-5 h-5 text-primary-600" />
                   <h2 className="text-xl font-semibold text-gray-900">Personal Information</h2>
@@ -259,7 +260,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              {/* Skills Section */}
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <FiAward className="w-5 h-5 text-primary-600" />
                   <h2 className="text-xl font-semibold text-gray-900">Skills</h2>
@@ -305,7 +307,8 @@ export default function Dashboard() {
 
             {/* Right Column */}
             <div className="space-y-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              {/* Experience Section */}
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <FiBriefcase className="w-5 h-5 text-primary-600" />
@@ -387,7 +390,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              {/* Education Section */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <FiBook className="w-5 h-5 text-primary-600" />
